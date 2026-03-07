@@ -9,23 +9,22 @@ private:
 
   long lastSampleTicks;
   unsigned long lastSampleTime;
-  const int ticksPerRev = 20;
+  const int ticksPerRev = 8;
+  const int gearRatio = 120;
   float speedRPS;
+  int dir;
   
-  volatile long ticksA;
-  volatile long ticksB;
+  volatile long ticks;
 
 public:
   Motor(int pwm, int encA, int encB);
 
   void setSpeed(int speed);
-  void updateSpeed();
+  void updateSpeedDir();
   void encoderISRA();
-  void encoderISRB();
   float getSpeedRPS();
   int getDir();
-  long getTicksA();
-  long getTicksB();
+  long getTicks();
 };
 
 #endif

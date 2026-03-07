@@ -6,46 +6,26 @@ const int encoderB = 3;
 
 Motor Motor1(motorPWM, encoderA, encoderB);
 
-//Wrapper functions for encoder interrupts
+//Wrapper function for encoder A interrupts
 void encoderAWrapper() {
   Motor1.encoderISRA();
-}
-
-void encoderBWrapper() {
-  Motor1.encoderISRB();
 }
 
 
 void setup() {
   Serial.begin(9600);
   attachInterrupt(digitalPinToInterrupt(encoderA), encoderAWrapper, RISING);
-  attachInterrupt(digitalPinToInterrupt(encoderB), encoderBWrapper, RISING);
 }
-
 
 void loop() {
-  while(!Serial.available()) {Motor1.updateSpeed();}  //Update speed every 0.5s until input
+  while(!Serial.available()) {Motor1.updateSpeedDir();}  //Update speed every 0.5s until input
 
   //Take Serial input to change speed/display data
-  String in = Serial.readStringUntil('\n');
-  in.trim();  
-  if(in == "A") {
-    Serial.print("A ticks: ");
-    Serial.println(Motor1.getTicksA());
-  }
-  else if(in == "B") {
-    Serial.print("B ticks: ");
-    Serial.println(Motor1.getTicksB());
-  }
-  else if(in == "Speed") {
-    Serial.print("Speed: ");
-    Serial.println(Motor1.getSpeedRPS());
-  }
-  else if(isInteger(in)) {  //Change speed if Serial input is an integer
-    int speed = in.toInt();
-    Motor1.setSpeed(speed);
-  }
+  String input = Serial.readStringUntil('\n');
+  input.trim();
+  testMotor(input);
 }
+
 
 bool isInteger(String s) {
   if(s.length() == 0) return false;
@@ -55,5 +35,29 @@ bool isInteger(String s) {
     }
   }
   return true;
+}
+
+void testMotor(String in) {
+  if(in == "T") {
+    Serial.print("Ticks: ");
+    Serial.println(Motor1.getTicks());
+  } else if(in == "Speed") {
+    Serial.print("Speed: ");
+    Serial.print(Motor1.getSpeedRPS());
+    Serial.println("rps");
+  } else if (in == "D") {
+    int dir = Motor1.getDir();
+    Serial.print("Direction: ");
+      if (dir == 0){
+        Serial.println("still");
+      } else if(dir == -1) {
+        Serial.println("clockwise");
+      } else {
+        Serial.println("counter-clockwise");
+      }
+  } else if(isInteger(in)) {  //Change speed if Serial input is an integer
+    int speed = in.toInt();
+    Motor1.setSpeed(speed);
+  }
 }
 
