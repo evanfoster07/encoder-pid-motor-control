@@ -6,20 +6,24 @@ private:
   int pwmPin;
   int encoderAPin;
   int encoderBPin;
+  int dirAPin;
+  int dirBPin;
 
   long lastSampleTicks;
   unsigned long lastSampleTime;
   const int ticksPerRev = 8;
   const int gearRatio = 120;
+  int speedPWM;
   float speedRPS;
-  int dir;
+  int direction;
   
   volatile long ticks;
 
 public:
-  Motor(int pwm, int encA, int encB);
+  Motor(int pwm, int encA, int encB, int dirAP, int dirBP);
 
-  void setSpeed(int speed);
+  void setSpeed(int pwm);
+  void setDir(int dir);
   void updateSpeedDir();
   void encoderISRA();
   float getSpeedRPS();

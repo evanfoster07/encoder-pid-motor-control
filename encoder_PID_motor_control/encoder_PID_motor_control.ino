@@ -3,8 +3,10 @@
 const int motorPWM = 5;
 const int encoderA = 2;
 const int encoderB = 3;
+const int dirAPin = 8;
+const int dirBPin = 9;
 
-Motor Motor1(motorPWM, encoderA, encoderB);
+Motor Motor1(motorPWM, encoderA, encoderB, dirAPin, dirBPin);
 
 //Wrapper function for encoder A interrupts
 void encoderAWrapper() {
@@ -55,6 +57,10 @@ void testMotor(String in) {
       } else {
         Serial.println("counter-clockwise");
       }
+  } else if(in == "C") {  //Change direction (clockwise or counter-clockwise)
+    Motor1.setDir(-1);
+  } else if (in == "CC") {
+    Motor1.setDir(1);
   } else if(isInteger(in)) {  //Change speed if Serial input is an integer
     int speed = in.toInt();
     Motor1.setSpeed(speed);
