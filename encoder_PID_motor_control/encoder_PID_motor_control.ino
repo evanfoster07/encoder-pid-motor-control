@@ -1,59 +1,59 @@
-#include <math.h>
+#include "Motor.h"
 
-volatile long ticksA = 0;
-volatile long ticksB = 0;
+const int motorPWM = 5;
+const int encoderA = 2;
+const int encoderB = 3;
 
-const int motor = 5;
-const int encoderChanA = 2;
-const int encoderChanB = 3;
+Motor Motor1(motorPWM, encoderA, encoderB);
 
-void encoderISRA() {
-  ticksA++;
+//Wrapper functions for encoder interrupts
+void encoderAWrapper() {
+  Motor1.encoderISRA();
 }
 
-void encoderISRB() {
-  ticksB++;
-}
-
-float getSpeedRPS() {
-  long ticks1 = ticksA;
-  unsigned long now = millis();
-  while(millis() - now < 1000) {}   
-  return (ticksA - ticks1) / 20.0;  //20 ticks/revolution
-}
-
-float getSpeedRPM() {
-  long ticks1 = ticksA;
-  unsigned long now = millis();
-  while(millis() - now < 1000) {}   
-  return ((ticksA - ticks1) / 20.0) * 60;  //20 ticks/revolution, 1rps = 60rpm
+void encoderBWrapper() {
+  Motor1.encoderISRB();
 }
 
 
 void setup() {
-  // put your setup code here, to run once:
-  pinMode(motor, OUTPUT);
-  pinMode(encoderChanA, INPUT);
-  pinMode(encoderChanB, INPUT);
-  digitalWrite(motor, LOW);
   Serial.begin(9600);
-
-  attachInterrupt(digitalPinToInterrupt(encoderChanA), encoderISRA, RISING);
-  attachInterrupt(digitalPinToInterrupt(encoderChanB), encoderISRB, RISING);
+  attachInterrupt(digitalPinToInterrupt(encoderA), encoderAWrapper, RISING);
+  attachInterrupt(digitalPinToInterrupt(encoderB), encoderBWrapper, RISING);
 }
+
 
 void loop() {
-  // put your main code here, to run repeatedly:
-  while(!Serial.available()) {}
-  
-  String input = Serial.readStringUntil('\n');
-  int pwm = input.toInt();
+  while(!Serial.available()) {Motor1.updateSpeed();}  //Update speed every 0.5s until input
 
-  analogWrite(motor, pwm);
-  delay(500);
-  float speedRPS = getSpeedRPS();
-  Serial.println(speedRPS, 2);
-  analogWrite(motor, 0);
+  //Take Serial input to change speed/display data
+  String in = Serial.readStringUntil('\n');
+  in.trim();  
+  if(in == "A") {
+    Serial.print("A ticks: ");
+    Serial.println(Motor1.getTicksA());
+  }
+  else if(in == "B") {
+    Serial.print("B ticks: ");
+    Serial.println(Motor1.getTicksB());
+  }
+  else if(in == "Speed") {
+    Serial.print("Speed: ");
+    Serial.println(Motor1.getSpeedRPS());
+  }
+  else if(isInteger(in)) {  //Change speed if Serial input is an integer
+    int speed = in.toInt();
+    Motor1.setSpeed(speed);
+  }
 }
 
+bool isInteger(String s) {
+  if(s.length() == 0) return false;
+  for(int i = 0; i < s.length(); i++) {
+    if(!isdigit(s[i])) {
+      return false;
+    }
+  }
+  return true;
+}
 
