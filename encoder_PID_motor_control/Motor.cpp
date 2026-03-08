@@ -120,9 +120,9 @@ void Motor::applyControl(float control) {
 
   int newDir;
   if (control < 0) {
-    newDir = -1;  //switch to clockwise if excess counter-clockwise speed
+    newDir = -1;  //set direction based on control output
   } else {
-    newDir = 1;   //switch to counterclockwise with excess clockwise speed
+    newDir = 1;   
   }
 
   int pwm = (int)abs(control);

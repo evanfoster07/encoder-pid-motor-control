@@ -7,6 +7,7 @@ private:
   float ki;
   float kd;
 
+  float integral;
   float prevError;
 
 public:
@@ -14,6 +15,9 @@ public:
   
   float compute(float target, float measured, float dt);
 
+  void setkp(float p);
+  void setki(float i);
+  void setkd(float d);
 };
 
 #endif
