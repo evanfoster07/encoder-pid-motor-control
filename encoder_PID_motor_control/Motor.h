@@ -15,19 +15,27 @@ private:
   const int gearRatio = 120;
   int speedPWM;
   float speedRPS;
-  int direction;
+  float targetSpeedRPS;
+  int measuredDirection;
+  int setDirection;
   
   volatile long ticks;
 
 public:
   Motor(int pwm, int encA, int encB, int dirAP, int dirBP);
 
-  void setSpeed(int pwm);
+  void setSpeedPWM(int pwm);
+  void setTargetSpeedRPS(float rps);
   void setDir(int dir);
   void updateSpeedDir();
   void encoderISRA();
+  void applyControl(float err);
+  
+  float getTargetSpeedRPS();
   float getSpeedRPS();
-  int getDir();
+  int getSpeedPWM();
+  int getMeasuredDir();
+  int getSetDirection();
   long getTicks();
 };
 

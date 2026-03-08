@@ -7,11 +7,14 @@ Motor::Motor(int pwm, int encA, int encB, int dirAP, int dirBP) {
   encoderBPin = encB;
   dirAPin = dirAP;
   dirBPin = dirBP;
+
   lastSampleTicks = 0;
   lastSampleTime = millis();
   speedPWM = 0;
   speedRPS = 0;
   ticks = 0; 
+  targetSpeedRPS = 0;
+  setDirection = -1;
 
   pinMode(pwmPin, OUTPUT);
   pinMode(encoderAPin, INPUT);
@@ -22,44 +25,45 @@ Motor::Motor(int pwm, int encA, int encB, int dirAP, int dirBP) {
   digitalWrite(dirBPin, HIGH);
 }
 
-void Motor::setSpeed(int pwm) {
+void Motor::setSpeedPWM(int pwm) {
   speedPWM = pwm;
   analogWrite(pwmPin, speedPWM);
 }
 
-float Motor::getSpeedRPS() {
-  return speedRPS;
+void Motor::setTargetSpeedRPS(float rps) {
+  targetSpeedRPS = rps;
 }
 
 void Motor::setDir(int dir) {
+  if(dir != 1 && dir != -1) return;
+
+  setDirection = dir;
   int dirA;
   int dirB;
   int currPWM = speedPWM; //Store speed and set 0 to safely change direction
-  setSpeed(0);
-  delay(5);  //Wait 5ms to avoid large reverse current spike
+  setSpeedPWM(0);
+  delay(3);  //Wait 3ms to avoid large reverse current spike
   
-  if(dir == -1) { //LOW/HIGH configured for specific pins % motor driver connections
+  if(setDirection == -1) { //LOW/HIGH configured for specific pins % motor driver connections
     dirA = LOW;
     dirB = HIGH;
-  } else if (dir == 1){
+  } else if (setDirection == 1){
     dirA = HIGH;
     dirB = LOW;
   }
   digitalWrite(dirAPin, dirA);
   digitalWrite(dirBPin, dirB);
 
-  setSpeed(currPWM);
-}
-
-int Motor::getDir() {
-  return direction;
+  setSpeedPWM(currPWM);
 }
 
 void Motor::updateSpeedDir() {
   unsigned long now = millis();
 
-  if(now - lastSampleTime >= 75) {   //Sample every 75ms
+  if(now - lastSampleTime >= 50) {  //Sample every 50ms
+    noInterrupts();
     long currentTicks = ticks;
+    interrupts();
     long deltaTicks = currentTicks - lastSampleTicks;
     float deltaTimeS = (now - lastSampleTime) / 1000.0;
 
@@ -67,16 +71,15 @@ void Motor::updateSpeedDir() {
     lastSampleTime = now;
 
     float speed = (deltaTicks / float(ticksPerRev)) / deltaTimeS / gearRatio;
+    speedRPS = speed;
     
     if(abs(speed) < 0.001) {
-      direction = 0;  //dir = 0 if still
+      measuredDirection = 0;  //dir = 0 if still
     } else if (speed < 0) {   //negative speed clockwise -1 (B leads A), positive speed counterclockwise 1 (A leads B)
-      direction = -1;
+      measuredDirection = -1;
     } else {
-      direction = 1;
+      measuredDirection = 1;
     }
-    
-    speedRPS = abs(speed);
   }
 }
 
@@ -92,7 +95,52 @@ long Motor::getTicks() {
   return ticks;
 }
 
+float Motor::getTargetSpeedRPS() {
+  return targetSpeedRPS;
+}
 
+float Motor::getSpeedRPS() {
+  return speedRPS;
+}
+
+int Motor::getSpeedPWM() {
+  return speedPWM;
+}
+
+int Motor::getMeasuredDir() {
+  return measuredDirection;
+}
+
+int Motor::getSetDirection() {
+  return setDirection;
+}
+
+void Motor::applyControl(float control) {
+  const int minPWM = 90;   //experimentally determined
+
+  int newDir;
+  if (control < 0) {
+    newDir = -1;  //switch to clockwise if excess counter-clockwise speed
+  } else {
+    newDir = 1;   //switch to counterclockwise with excess clockwise speed
+  }
+
+  int pwm = (int)abs(control);
+
+  if (pwm > 255) {  //Clamp pwm to max or minimum effective if correction is needed
+    pwm = 255;
+  }
+
+  if (pwm > 0 && pwm < minPWM) {
+    pwm = minPWM;
+  }
+
+  if (newDir != setDirection) {  //Change direction if correction is required
+    setDir(newDir);
+  }
+
+  setSpeedPWM(pwm);
+}
 
 
 
