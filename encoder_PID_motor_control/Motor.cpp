@@ -60,7 +60,7 @@ void Motor::setDir(int dir) {
 void Motor::updateSpeedDir() {
   unsigned long now = millis();
 
-  if(now - lastSampleTime >= 50) {  //Sample every 50ms
+  if(now - lastSampleTime >= 50) {  //Sample after minimum 50ms using actual elapsed time
     noInterrupts();
     long currentTicks = ticks;
     interrupts();
