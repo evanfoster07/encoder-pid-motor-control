@@ -1,6 +1,14 @@
 # Motor Speed Control System
 Embedded motor control system implemented on Arduino using PID feedback, encoder-based speed measurement, and real-time display output.
 
+## Hardware Setup
+
+![Hardware Setup](docs/images/setup.jpg)
+
+## System Demo
+
+[Watch the demo](docs/demo/motor_demo.mp4)
+
 ## Overview
 This project implements a closed-loop control system to regulate the rotational speed of a DC motor. The system uses quadrature encoder feedback to measure motor speed and applies a PID controller to adjust PWM output in real time.
 A rotary encoder allows the user to adjust the target speed interactively, while an OLED display provides live feedback showing:
