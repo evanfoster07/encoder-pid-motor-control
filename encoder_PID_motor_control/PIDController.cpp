@@ -30,7 +30,7 @@ PID_Control::PID_Control() {  //default constructor
 
 float PID_Control::compute(float target, float measured, float dt, float maxInt, float lowThreshold, float midThreshold, float highThreshold) {
   if (target == 0) return 0; //Stop motor if target is 0
-  if (abs(target - prevTarget) > 0.001) {  //If target changed, alter kp, ki, kd and maxIntegral based on speed
+  if (abs(target - prevTarget) > 0.001) {  //If target changed, alter kp, ki, kd and maxIntegral based on speed 
     if (abs(target) < lowThreshold) {
       kp = setkp;
       ki = setki;

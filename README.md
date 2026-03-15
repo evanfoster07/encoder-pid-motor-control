@@ -52,10 +52,11 @@ Updates the OLED display periodically with system telemetry.
 ## Control Strategy
 The controller uses PID feedback:
 
-`control = PID(target_speed − measured_speed)`
+`control = PID(target_speed − measured_speed) + feedforward`
 
 combined with feedforward compensation to overcome motor friction and deadband effects.
 This allows the controller to respond quickly to changes in target speed while maintaining stable operation.
+Experimentally determined threshold values are also used to adjust PID gains and integral limits based on target speed for improved control across different operating ranges.
 
 ## Learning Highlights
 Key concepts explored during this project:
