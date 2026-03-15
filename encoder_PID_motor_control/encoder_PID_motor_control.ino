@@ -1,81 +1,173 @@
 #include "Motor.h"
 #include "PIDController.h"
+#include <U8g2lib.h>
 
+// ==============================
+// Hardware Configuration
+// ==============================
+
+//GME12864 module
+U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0);
+
+//Hardware pins
 const int motorPWM = 5;
-const int encoderA = 2;
-const int encoderB = 3;
+const int mEncoderA = 2;
+const int mEncoderB = 12;
+const int rEncoderA = 3;
+const int rEncoderB = 13;
 const int dirAPin = 8;
 const int dirBPin = 9;
 
-//Motor and PID_Control objects
-Motor Motor1(motorPWM, encoderA, encoderB, dirAPin, dirBPin);
-PID_Control pid(50.0, 50.0, 5.0);
+//Hardware configuration constants
+const unsigned long DISPLAY_INTERVAL_MS = 100;
+const unsigned long CONTROL_INTERVAL_MS = 50;
+const unsigned long RENC_DEBOUNCE_US = 2000;
+const float TARGET_STEP_RPS = 0.01;
+const float FEEDFORWARD_PWM = 90.0;
+const float CONTROL_DT_S = 0.050;
 
-void encoderAWrapper() {  //Wrapper function for encoder A interrupts
-  Motor1.encoderISRA();
+//Global timing variables
+unsigned long lastDisplayUpdate;
+unsigned long lastControl;
+volatile unsigned long lastREncUpdate;
+
+//Buffer variables for calculating 1s average speed
+const int AVG_WINDOW = 20;
+float recentSpeedRPS[AVG_WINDOW];
+float avgSpeedRPS = 0;
+int bufferIndex = 0;
+float speedSumRPS = 0;
+
+//Rotary encoder input variables
+volatile int rEncTicks = 0;
+int lastREncTicks = 0;
+
+
+//Motor and PID_Control objects
+Motor motor(motorPWM, mEncoderA, mEncoderB, dirAPin, dirBPin);
+PID_Control pid(20.0, 20.0, 1.0);
+
+
+
+// =====================================
+//  Motor and Rotary Encoder Interrupts
+// =====================================
+
+void encoderMotorWrapper() {  //wrapper function for encoder A interrupts
+  motor.encoderISR();
 }
 
-//global variables for data printing intervals
-unsigned long lastPrint;
-unsigned long lastControl;
-unsigned long now;
+void rotEncoderISR() {
+  const unsigned long currentMicros = micros();
+  if (currentMicros - lastREncUpdate > RENC_DEBOUNCE_US) { //Ignore quick successive interrupts for software debounce
+    lastREncUpdate = currentMicros;
+    bool A = digitalRead(rEncoderA);
+    bool B = digitalRead(rEncoderB);
+
+    if (A == B) {
+      rEncTicks++;
+    } else {
+      rEncTicks--;
+    }
+  }
+}
+
 
 void setup() {
   Serial.begin(9600);
-  attachInterrupt(digitalPinToInterrupt(encoderA), encoderAWrapper, RISING);
+  attachInterrupt(digitalPinToInterrupt(mEncoderA), encoderMotorWrapper, RISING);
+  attachInterrupt(digitalPinToInterrupt(rEncoderA), rotEncoderISR, FALLING);
 
-  Motor1.setTargetSpeedRPS(0.650);
-  lastPrint = millis();
+  pinMode(rEncoderA, INPUT_PULLUP);
+  pinMode(rEncoderB, INPUT_PULLUP);
+
+  u8g2.begin();
+
+  lastDisplayUpdate = millis();
   lastControl = millis();
 }
 
-
 void loop() {
-  controlMotor(Motor1);
+  controlMotor();
+  updateDisplay();
 
-  if(now - lastPrint > 2000) {  //print metrics for testing
-    lastPrint = now;
-    Serial.print("Target RPS: ");
-    Serial.println(Motor1.getTargetSpeedRPS());
-    Serial.print("Measured RPS: ");
-    Serial.println(Motor1.getSpeedRPS());
-    Serial.print("Error: ");
-    Serial.println(pid.getPrevError());
-    Serial.print("Recent derivative: ");
-    Serial.println(pid.getPrevDerivative());
-    Serial.print("Current integral: ");
-    Serial.println(pid.getIntegral());
-    Serial.println();
-  }
+  noInterrupts();
+  int ticks = rEncTicks;
+  interrupts();
 
-  if(Serial.available()) {  //Change target speed (rps) based on input
-    char buffer[20];
-    Serial.readBytesUntil('\n', buffer, 20);  
-    float newSpeed = atof(buffer);
-    Motor1.setTargetSpeedRPS(newSpeed);
+  if (ticks != lastREncTicks) {
+    motor.setTargetSpeedRPS(rEncTicks * TARGET_STEP_RPS);
+    lastREncTicks = ticks;
   }
 }
 
 
-void controlMotor(Motor motor) {
-  now = millis();
-  if(now - lastControl > 50) {  //Run control loop
-    lastControl = now;
-    Motor1.updateSpeedDir();
-    float target = Motor1.getTargetSpeedRPS();
-    float measured = Motor1.getSpeedRPS();
-    float error = pid.compute(target, measured, 0.050, 0.50);
+// =================
+//  Control Logic
+// =================
+
+void updateDisplay() {
+  const unsigned long currentMillis = millis();
+  if (currentMillis - lastDisplayUpdate > DISPLAY_INTERVAL_MS) { //wait at least 100 ms to update
+    lastDisplayUpdate = currentMillis;
+    u8g2.firstPage();
+    do {
+      u8g2.setFont(u8g2_font_ncenB08_tr);
+
+      u8g2.setCursor(0, 15);
+      u8g2.print("Target Speed: ");
+      u8g2.print(motor.getTargetSpeedRPS());
+
+      u8g2.setCursor(0, 30);
+      u8g2.print("1s Avg Speed: ");
+      u8g2.print(avgSpeedRPS);
+
+      u8g2.setCursor(0, 45);
+      u8g2.print("Actual Speed: ");
+      u8g2.print(motor.getSpeedRPS());
+
+      u8g2.setCursor(0, 60);
+      u8g2.print("   (all speed in RPS)");
+    } while (u8g2.nextPage());
+  }
+}
+
+void updateAverage(float newSpeed) {
+  speedSumRPS -= recentSpeedRPS[bufferIndex];
+  recentSpeedRPS[bufferIndex] = newSpeed;
+  speedSumRPS += newSpeed;
+  bufferIndex++;
+
+  if (bufferIndex == AVG_WINDOW) {
+    bufferIndex = 0;
+  }
+
+  avgSpeedRPS = speedSumRPS / AVG_WINDOW;
+}
+
+void controlMotor() {
+  const unsigned long currentMillis = millis();
+  if (currentMillis - lastControl > CONTROL_INTERVAL_MS) {  //Run control loop
+    lastControl = currentMillis;
+    motor.updateSpeedDir();
+    const float target = motor.getTargetSpeedRPS();
+    const float measured = motor.getSpeedRPS();
+
+    // Compute PID correction based on target vs measured speed
+    float pidOutput = pid.compute(target, measured, CONTROL_DT_S, 1.00, 0.30, 0.50, 0.80); //args are experimentally determined for given motor's performance
 
     float feedforward = 0;
+    
 
-    if(target > 0 && abs(target) > 0.50) {  //Only set feedforward if speed > 0.50rps (avg speed at pwm 90)
-      feedforward = 90;
-    } else if (abs(target) > 0.50){
-      feedforward = -90;
+    if (target > 0.01) {
+      feedforward = FEEDFORWARD_PWM;
+    } else if (target < -0.01) {
+      feedforward = -FEEDFORWARD_PWM;
     }
 
-    float control = error + feedforward;
+    float control = pidOutput + feedforward;
     
-    Motor1.applyControl(control);
+    updateAverage(measured);
+    motor.applyControl(control);
   }
 }

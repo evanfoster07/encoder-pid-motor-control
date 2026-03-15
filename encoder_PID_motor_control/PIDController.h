@@ -10,12 +10,10 @@ private:
   float setkp;
   float setki;
   float setkd;
-  const float lowkp = 5;
-  const float lowki = 5;
-  const float lowkd = 1;
 
   float prevDerivative;
   float integral;
+  float maxIntegral;
   float prevError;
   float prevTarget;
 
@@ -23,7 +21,7 @@ public:
   PID_Control(float p, float i, float d);
   PID_Control();
   
-  float compute(float target, float measured, float dt, float threshold);
+  float compute(float target, float measured, float dt, float maxInt, float lowThreshold, float midThreshold, float highThreshold);
 
   void setKP(float p);
   void setKI(float i);

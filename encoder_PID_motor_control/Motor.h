@@ -11,10 +11,11 @@ private:
 
   long lastSampleTicks;
   unsigned long lastSampleTime;
-  const int ticksPerRev = 8;
-  const int gearRatio = 120;
+  const int TICKS_PER_REV = 8;
+  const int GEAR_RATIO = 120;
   int speedPWM;
   float speedRPS;
+  float avgSpeedRPS;
   float targetSpeedRPS;
   int measuredDirection;
   int setDirection;
@@ -28,7 +29,7 @@ public:
   void setTargetSpeedRPS(float rps);
   void setDir(int dir);
   void updateSpeedDir();
-  void encoderISRA();
+  void encoderISR();
   void applyControl(float err);
   
   float getTargetSpeedRPS();

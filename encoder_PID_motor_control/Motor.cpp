@@ -1,6 +1,11 @@
 #include "Motor.h"
 #include <Arduino.h>
 
+// Motor.cpp
+// DC motor control using PWM and encoder feedback.
+// Handles direction control, speed measurement from encoder interrupts,
+// and applys control signals from the PID controller.
+
 Motor::Motor(int pwm, int encA, int encB, int dirAP, int dirBP) {
   pwmPin = pwm;
   encoderAPin = encA;
@@ -12,6 +17,7 @@ Motor::Motor(int pwm, int encA, int encB, int dirAP, int dirBP) {
   lastSampleTime = millis();
   speedPWM = 0;
   speedRPS = 0;
+  avgSpeedRPS = 0;
   ticks = 0; 
   targetSpeedRPS = 0;
   setDirection = -1;
@@ -35,7 +41,7 @@ void Motor::setTargetSpeedRPS(float rps) {
 }
 
 void Motor::setDir(int dir) {
-  if(dir != 1 && dir != -1) return;
+  if (dir != 1 && dir != -1) return;
 
   setDirection = dir;
   int dirA;
@@ -44,7 +50,7 @@ void Motor::setDir(int dir) {
   setSpeedPWM(0);
   delay(3);  //Wait 3ms to avoid large reverse current spike
   
-  if(setDirection == -1) { //LOW/HIGH configured for specific pins % motor driver connections
+  if (setDirection == -1) { //LOW/HIGH configured for specific pins % motor driver connections
     dirA = LOW;
     dirB = HIGH;
   } else if (setDirection == 1){
@@ -60,7 +66,7 @@ void Motor::setDir(int dir) {
 void Motor::updateSpeedDir() {
   unsigned long now = millis();
 
-  if(now - lastSampleTime >= 50) {  //Sample after minimum 50ms using actual elapsed time
+  if (now - lastSampleTime >= 50) {  //Sample after minimum 50ms using actual elapsed time
     noInterrupts();
     long currentTicks = ticks;
     interrupts();
@@ -70,12 +76,13 @@ void Motor::updateSpeedDir() {
     lastSampleTicks = currentTicks;
     lastSampleTime = now;
 
-    float speed = (deltaTicks / float(ticksPerRev)) / deltaTimeS / gearRatio;
-    speedRPS = speed;
+    float rawSpeed = (deltaTicks / float(TICKS_PER_REV)) / deltaTimeS / GEAR_RATIO; //calculate rps of current motor shaft speed
+    float alpha = 0.1;
+    speedRPS = alpha * speedRPS + (1 - alpha) * rawSpeed; //Only update speed by 90% of measured speed to avoid jumping
     
-    if(abs(speed) < 0.001) {
+    if (abs(speedRPS) < 0.001) {
       measuredDirection = 0;  //dir = 0 if still
-    } else if (speed < 0) {   //negative speed clockwise -1 (B leads A), positive speed counterclockwise 1 (A leads B)
+    } else if (speedRPS < 0) {   //negative speed clockwise -1 (B leads A), positive speed counterclockwise 1 (A leads B)
       measuredDirection = -1;
     } else {
       measuredDirection = 1;
@@ -83,8 +90,11 @@ void Motor::updateSpeedDir() {
   }
 }
 
-void Motor::encoderISRA() {
-  if(digitalRead(encoderBPin) == HIGH) {
+void Motor::encoderISR() {
+  bool A = digitalRead(encoderAPin);
+  bool B = digitalRead(encoderBPin);
+  
+  if (A == B) {
     ticks--;  //B leads A
   } else {
     ticks++;  //A leads B
@@ -131,8 +141,8 @@ void Motor::applyControl(float control) {
     pwm = 255;
   }
 
-  if (pwm > 0 && pwm < minPWM) {
-    pwm = minPWM;
+  if (pwm < minPWM) {
+    pwm = 0;
   }
 
   if (newDir != setDirection) {  //Change direction if correction is required
